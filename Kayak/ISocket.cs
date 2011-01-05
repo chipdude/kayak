@@ -20,20 +20,20 @@ namespace Kayak
         /// operation. When the operation completes, the observable yields the number of
         /// bytes written and completes.
         /// </summary>
-        Action<Action<int>, Action<Exception>> Write(byte[] buffer, int offset, int count);
+        void Write(byte[] buffer, int offset, int count, Action<int> bytesWritten, Action<Exception> exception);
 
         /// <summary>
         /// Returns an observable which, upon subscription, begins copying a file
         /// to the socket. When the copy operation completes, the observable completes.
         /// </summary>
-        Action<Action, Action<Exception>> WriteFile(string file);
+        void WriteFile(string file, Action completed, Action<Exception> exception);
 
         /// <summary>
         /// Returns an observable which, upon subscription, begins an asynchronous read
         /// operation. When the operation completes, the observable yields the number of
         /// bytes read and completes.
         /// </summary>
-        Action<Action<int>, Action<Exception>> Read(byte[] buffer, int offset, int count);
+        void Read(byte[] buffer, int offset, int count, Action<int> bytesRead, Action<Exception> exception);
     }
 
 }

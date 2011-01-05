@@ -65,13 +65,13 @@ namespace Kayak
             }
         }
 
-        public Action<Action<ISocket>> GetConnection()
+        public void GetConnection(Action<ISocket> socket)
         {
-            return r => listener.BeginAccept(iasr =>
+            listener.BeginAccept(iasr =>
             {
                 try
                 {
-                    r(new DotNetSocket(listener.EndAccept(iasr)));
+                    socket(new DotNetSocket(listener.EndAccept(iasr)));
                 }
                 catch (Exception e)
                 {
@@ -102,25 +102,50 @@ namespace Kayak
             socket.Close();
         }
 
-        public Action<Action<int>, Action<Exception>> Write(byte[] buffer, int offset, int count)
+        public void Write(byte[] buffer, int offset, int count, Action<int> bytesWritten, Action<Exception> exception)
         {
-            return Continuation.FromAsync<int>(
-                (c, s) => socket.BeginSend(buffer, offset, count, SocketFlags.None, c, s), 
-                socket.EndSend);
+            socket.BeginSend(buffer, offset, count, SocketFlags.None, iasr =>
+                {
+                    try
+                    {
+                        bytesWritten(socket.EndSend(iasr));
+                    }
+                    catch (Exception e)
+                    {
+                        exception(e);
+                    }
+                }, null);
         }
 
-        public Action<Action, Action<Exception>> WriteFile(string file)
+        public void WriteFile(string file, Action competed, Action<Exception> exception)
         {
-            return Continuation.FromAsync(
-                (c, s) => socket.BeginSendFile(file, c, s),
-                iasr => { socket.EndSendFile(iasr); });
+            socket.BeginSendFile(file, iasr =>
+            {
+                try
+                {
+                    socket.EndSendFile(iasr);
+                    competed();
+                }
+                catch (Exception e)
+                {
+                    exception(e);
+                }
+            }, null);
         }
 
-        public Action<Action<int>, Action<Exception>> Read(byte[] buffer, int offset, int count)
+        public void Read(byte[] buffer, int offset, int count, Action<int> bytesRead, Action<Exception> exception)
         {
-            return Continuation.FromAsync<int>(
-                (c, s) => socket.BeginReceive(buffer, offset, count, SocketFlags.None, c, s),
-                socket.EndSend);
+            socket.BeginSend(buffer, offset, count, SocketFlags.None, iasr =>
+            {
+                try
+                {
+                    bytesRead(socket.EndSend(iasr));
+                }
+                catch (Exception e)
+                {
+                    exception(e);
+                }
+            }, null);
         }
     }
 }

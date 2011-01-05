@@ -76,7 +76,7 @@ namespace Kayak
                     }
                     else if (socket != null)
                     {
-                        socket.Read(buffer, offset, count)(r, e);
+                        socket.Read(buffer, offset, count, r, e);
                     }
                     else
                     {

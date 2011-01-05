@@ -30,7 +30,7 @@ namespace Kayak
         {
             while (true)
             {
-                var accept = new ContinuationState<ISocket>((r, e) => server.GetConnection()(r));
+                var accept = new ContinuationState<ISocket>((r, e) => server.GetConnection(r));
                 yield return accept;
 
                 if (accept.Result == null)
@@ -85,7 +85,7 @@ namespace Kayak
 
                 if (objectToWrite is FileInfo)
                 {
-                    yield return new ContinuationState(socket.WriteFile((objectToWrite as FileInfo).Name));
+                    yield return new ContinuationState((r, s) => socket.WriteFile((objectToWrite as FileInfo).Name, r, s));
                     continue;
                 }
 

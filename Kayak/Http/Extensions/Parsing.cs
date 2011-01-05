@@ -57,7 +57,7 @@ namespace Kayak
                 int bytesRead = 0;
 
                 //Trace.Write("About to read header chunk.");
-                var read = new ContinuationState<int>(socket.Read(buffer, bufferPosition, buffer.Length - bufferPosition));
+                var read = new ContinuationState<int>((r, e) => socket.Read(buffer, bufferPosition, buffer.Length - bufferPosition, r, e));
                 yield return read;
 
                 bytesRead = read.Result;

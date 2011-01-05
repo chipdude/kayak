@@ -19,7 +19,7 @@ namespace Kayak
 
             while (bytesWritten < chunk.Count)
             {
-                var write = new ContinuationState<int>(socket.Write(chunk.Array, chunk.Offset + bytesWritten, chunk.Count - bytesWritten));
+                var write = new ContinuationState<int>((r, e) => socket.Write(chunk.Array, chunk.Offset + bytesWritten, chunk.Count - bytesWritten, r, e));
                 yield return write;
 
                 bytesWritten += write.Result;

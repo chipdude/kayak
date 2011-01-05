@@ -21,20 +21,22 @@ namespace KayakTests
 
             IEnumerator<ArraySegment<byte>> cs = null;
 
-            mockSocket
-                .Setup(s => s.Read(It.IsAny<byte[]>(), It.IsAny<int>(), It.IsAny<int>()))
-                .Returns<byte[], int, int>((byte[] b, int o, int c) =>
-                {
-                    if (cs == null)
-                        cs = chunks.GetEnumerator();
+            // Moq only supports signatures with up to 4 args. genius.
 
-                    if (!cs.MoveNext())
-                        return (r, e) => r(0);
+            //mockSocket
+            //    .Setup(s => s.Read(It.IsAny<byte[]>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<Action<int>>(), It.IsAny<Action<Exception>>())).Callback(
+            //    .Callback<byte[], int, int, Action<int>, Action<Exception>>((byte[] b, int o, int c, Action<int> r, Action<Exception> e) =>
+            //    {
+            //        if (cs == null)
+            //            cs = chunks.GetEnumerator();
 
-                    var chunk = cs.Current;
-                    Buffer.BlockCopy(chunk.Array, chunk.Offset, b, o, chunk.Count);
-                    return (r, e) => r(chunk.Count);
-                });
+            //        if (!cs.MoveNext())
+            //            return r(0);
+
+            //        var chunk = cs.Current;
+            //        Buffer.BlockCopy(chunk.Array, chunk.Offset, b, o, chunk.Count);
+            //        return r(chunk.Count);
+            //    });
 
             return mockSocket;
         }

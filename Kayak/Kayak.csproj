@@ -75,6 +75,7 @@
     <Compile Include="Extensions\Trace.cs" />
     <Compile Include="Http\Extensions\Application.cs" />
     <Compile Include="Http\Extensions\HttpParser.cs" />
+    <Compile Include="Http\Extensions\ParserDriver.cs" />
     <Compile Include="Http\Extensions\Parsing.cs" />
     <Compile Include="Http\HttpSupport.cs" />
     <Compile Include="IKayakServer.cs" />

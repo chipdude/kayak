@@ -29,126 +29,126 @@ namespace Kayak
 
     public static partial class Extensions
     {
-        /// <summary>
-        /// Buffers HTTP headers from a socket. The last ArraySegment in the list is any
-        /// data beyond headers which was read, which may be of zero length.
-        /// </summary>
-        static internal Action<Action<LinkedList<ArraySegment<byte>>>, Action<Exception>> BufferHeaders(this ISocket socket)
-        {
-            return BufferHeadersInternal(socket).AsContinuation<LinkedList<ArraySegment<byte>>>();
-        }
+        ///// <summary>
+        ///// Buffers HTTP headers from a socket. The last ArraySegment in the list is any
+        ///// data beyond headers which was read, which may be of zero length.
+        ///// </summary>
+        //static internal Action<Action<LinkedList<ArraySegment<byte>>>, Action<Exception>> BufferHeaders(this ISocket socket)
+        //{
+        //    return BufferHeadersInternal(socket).AsContinuation<LinkedList<ArraySegment<byte>>>();
+        //}
 
-        // this is horribly inefficient right now.
-        static IEnumerable<object> BufferHeadersInternal(ISocket socket)
-        {
-            LinkedList<ArraySegment<byte>> result = new LinkedList<ArraySegment<byte>>();
+        //// this is horribly inefficient right now.
+        //static IEnumerable<object> BufferHeadersInternal(ISocket socket)
+        //{
+        //    LinkedList<ArraySegment<byte>> result = new LinkedList<ArraySegment<byte>>();
 
-            int bufferPosition = 0, totalBytesRead = 0;
-            byte[] buffer = null;
+        //    int bufferPosition = 0, totalBytesRead = 0;
+        //    byte[] buffer = null;
 
-            while (true)
-            {
-                if (buffer == null || bufferPosition > BufferSize / 2)
-                {
-                    buffer = new byte[BufferSize];
-                    bufferPosition = 0;
-                }
+        //    while (true)
+        //    {
+        //        if (buffer == null || bufferPosition > BufferSize / 2)
+        //        {
+        //            buffer = new byte[BufferSize];
+        //            bufferPosition = 0;
+        //        }
 
-                int bytesRead = 0;
+        //        int bytesRead = 0;
 
-                //Trace.Write("About to read header chunk.");
-                var read = new ContinuationState<int>((r, e) => socket.Read(buffer, bufferPosition, buffer.Length - bufferPosition, r, e));
-                yield return read;
+        //        //Trace.Write("About to read header chunk.");
+        //        var read = new ContinuationState<int>((r, e) => socket.Read(buffer, bufferPosition, buffer.Length - bufferPosition, r, e));
+        //        yield return read;
 
-                bytesRead = read.Result;
+        //        bytesRead = read.Result;
 
-                //Trace.Write("Read {0} bytes.", bytesRead);
+        //        //Trace.Write("Read {0} bytes.", bytesRead);
 
-                result.AddLast(new ArraySegment<byte>(buffer, bufferPosition, bytesRead));
+        //        result.AddLast(new ArraySegment<byte>(buffer, bufferPosition, bytesRead));
 
-                if (bytesRead == 0)
-                    break;
+        //        if (bytesRead == 0)
+        //            break;
 
-                bufferPosition += bytesRead;
-                totalBytesRead += bytesRead;
+        //        bufferPosition += bytesRead;
+        //        totalBytesRead += bytesRead;
 
-                // TODO: would be nice to have a state machine and only parse once. for now
-                // let's just hope to catch it on the first go-round.
-                var bodyDataPosition = IndexOfAfterCRLFCRLF(result);
+        //        // TODO: would be nice to have a state machine and only parse once. for now
+        //        // let's just hope to catch it on the first go-round.
+        //        var bodyDataPosition = IndexOfAfterCRLFCRLF(result);
 
-                if (bodyDataPosition != -1)
-                {
-                    var last = result.Last.Value;
-                    result.RemoveLast();
-                    var overlapLength = totalBytesRead - bodyDataPosition;
-                    result.AddLast(new ArraySegment<byte>(last.Array, last.Offset, last.Count - overlapLength));
-                    result.AddLast(new ArraySegment<byte>(last.Array, last.Offset + last.Count - overlapLength, overlapLength));
-                    break;
-                }
+        //        if (bodyDataPosition != -1)
+        //        {
+        //            var last = result.Last.Value;
+        //            result.RemoveLast();
+        //            var overlapLength = totalBytesRead - bodyDataPosition;
+        //            result.AddLast(new ArraySegment<byte>(last.Array, last.Offset, last.Count - overlapLength));
+        //            result.AddLast(new ArraySegment<byte>(last.Array, last.Offset + last.Count - overlapLength, overlapLength));
+        //            break;
+        //        }
 
-                // TODO test this
-                if (totalBytesRead > MaxHeaderLength)
-                    throw new Exception("Request headers data exceeds max header length.");
-            }
+        //        // TODO test this
+        //        if (totalBytesRead > MaxHeaderLength)
+        //            throw new Exception("Request headers data exceeds max header length.");
+        //    }
 
-            yield return result;
-        }
+        //    yield return result;
+        //}
 
-        static internal int IndexOfAfterCRLFCRLF(IEnumerable<ArraySegment<byte>> buffers)
-        {
-            Queue<byte> lastFour = new Queue<byte>(4);
+        //static internal int IndexOfAfterCRLFCRLF(IEnumerable<ArraySegment<byte>> buffers)
+        //{
+        //    Queue<byte> lastFour = new Queue<byte>(4);
 
-            int i = 0;
-            foreach (var b in buffers.GetBytes())
-            {
-                if (lastFour.Count == 4)
-                    lastFour.Dequeue();
+        //    int i = 0;
+        //    foreach (var b in buffers.GetBytes())
+        //    {
+        //        if (lastFour.Count == 4)
+        //            lastFour.Dequeue();
 
-                lastFour.Enqueue(b);
+        //        lastFour.Enqueue(b);
 
-                if (lastFour.ElementAt(0) == 0x0d && lastFour.ElementAt(1) == 0x0a &&
-                    lastFour.ElementAt(2) == 0x0d && lastFour.ElementAt(3) == 0x0a)
-                    return i + 1;
+        //        if (lastFour.ElementAt(0) == 0x0d && lastFour.ElementAt(1) == 0x0a &&
+        //            lastFour.ElementAt(2) == 0x0d && lastFour.ElementAt(3) == 0x0a)
+        //            return i + 1;
 
-                i++;
-            }
+        //        i++;
+        //    }
 
-            return -1;
-        }
+        //    return -1;
+        //}
 
-        internal static HttpRequestLine ReadRequestLine(this TextReader reader)
-        {
-            string statusLine = reader.ReadLine();
+        //internal static HttpRequestLine ReadRequestLine(this TextReader reader)
+        //{
+        //    string statusLine = reader.ReadLine();
 
-            if (string.IsNullOrEmpty(statusLine))
-                throw new Exception("Could not parse request status.");
+        //    if (string.IsNullOrEmpty(statusLine))
+        //        throw new Exception("Could not parse request status.");
 
-            var tokens = statusLine.Split(' ').Where(s => !string.IsNullOrEmpty(s)).ToArray();
+        //    var tokens = statusLine.Split(' ').Where(s => !string.IsNullOrEmpty(s)).ToArray();
 
-            if (tokens.Length != 3 && tokens.Length != 2)
-                throw new Exception("Expected 2 or 3 tokens in request line.");
+        //    if (tokens.Length != 3 && tokens.Length != 2)
+        //        throw new Exception("Expected 2 or 3 tokens in request line.");
 
-            return new HttpRequestLine()
-                {
-                    Verb = tokens[0],
-                    RequestUri = tokens[1],
-                    HttpVersion = tokens.Length == 3 ? tokens[2] : "HTTP/1.0"
-                };
-        }
+        //    return new HttpRequestLine()
+        //        {
+        //            Verb = tokens[0],
+        //            RequestUri = tokens[1],
+        //            HttpVersion = tokens.Length == 3 ? tokens[2] : "HTTP/1.0"
+        //        };
+        //}
 
-        public static IDictionary<string, IEnumerable<string>> ReadHeaders(this TextReader reader)
-        {
-            var headers = new Dictionary<string, IEnumerable<string>>();
-            string line = null;
+        //public static IDictionary<string, IEnumerable<string>> ReadHeaders(this TextReader reader)
+        //{
+        //    var headers = new Dictionary<string, IEnumerable<string>>();
+        //    string line = null;
 
-            while (!string.IsNullOrEmpty(line = reader.ReadLine()))
-            {
-                int colon = line.IndexOf(':');
-                headers.Add(line.Substring(0, colon), new string[] { line.Substring(colon + 1).Trim() });
-            }
+        //    while (!string.IsNullOrEmpty(line = reader.ReadLine()))
+        //    {
+        //        int colon = line.IndexOf(':');
+        //        headers.Add(line.Substring(0, colon), new string[] { line.Substring(colon + 1).Trim() });
+        //    }
 
-            return headers;
-        }
+        //    return headers;
+        //}
 
         public static byte[] WriteStatusLineAndHeaders(string status, IDictionary<string, IList<string>> headers)
         {

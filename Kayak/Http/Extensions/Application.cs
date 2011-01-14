@@ -7,7 +7,7 @@ namespace Kayak
 {
     public delegate void
         OwinApplication(IDictionary<string, object> env,
-        Action<string, IDictionary<string, IList<string>>, IEnumerable<object>> completed,
+        Action<string, IDictionary<string, IList<string>>, IObservable<object>> completed,
         Action<Exception> faulted); 
 
     public static partial class Extensions
@@ -30,7 +30,7 @@ namespace Kayak
         {
             while (true)
             {
-                var accept = new ContinuationState<ISocket>((r, e) => server.GetConnection(r));
+                var accept = new ContinuationState<ISocket>((r, e) => server.OnConnection = s => r(s));
                 yield return accept;
 
                 if (accept.Result == null)
@@ -40,9 +40,9 @@ namespace Kayak
             }
         }
 
-        public static void ProcessSocket(this ISocket socket, IHttpSupport http, OwinApplication application, Action<Action> trampoline)
+        public static void ProcessSocket(this ISocket socket, OwinApplication application, Action<Action> trampoline)
         {
-            socket.ProcessSocketInternal(http, application).AsContinuation<object>(trampoline)
+            socket.ProcessSocketInternal(application).AsContinuation<object>(trampoline)
                 (_ => { }, e =>
                 {
                     Console.WriteLine("Error while processing request.");
@@ -50,43 +50,156 @@ namespace Kayak
                 });
         }
 
-        static IEnumerable<object> ProcessSocketInternal(this ISocket socket, IHttpSupport http, OwinApplication application)
+        static void ProcessSocketInternal2(this ISocket socket, OwinApplication application)
         {
+            IHttpParser parser = null;
+            IHttpParserObserver observer = new ParserObserver(socket, application);
+
+            socket.OnData = d => 
+                {
+                    parser.Execute(observer, d);
+                };
+
+            socket.OnTimeout = () =>
+                {
+                    socket.End();
+                    socket.Dispose();
+                };
+        }
+
+        class RequestBodyObservable : IObservable<ArraySegment<byte>>
+        {
+
+            public RequestBodyObservable(ISocket socket)
+            {
+            }
+
+            public void OnBodyData(ArraySegment<byte> data)
+            {
+            }
+
+            public IDisposable Subscribe(IObserver<ArraySegment<byte>> observer)
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        class ParserObserver : IHttpParserObserver
+        {
+            ISocket socket;
+            OwinApplication app;
+            Dictionary<string, object> env;
+            RequestBodyObservable requestBodyObservable;
+
+            public ParserObserver(ISocket socket, OwinApplication app)
+            {
+                this.socket = socket;
+                this.app = app;
+            }
+
+            public void OnMessageBegin()
+            {
+            }
+
+            public void OnHeadersComplete(string method, string path, string queryString, IDictionary<string, string> headers)
+            {
+                env = new Dictionary<string, object>();
+
+                env["Owin.RequestMethod"] = method;
+                env["Owin.RequestUri"] = path;
+
+                if (!string.IsNullOrEmpty(queryString))
+                    env["Owin.RequestUri"] = (env["Owin.RequestUri"] as string) + "?" + queryString;
+
+                env["Owin.RequestHeaders"] = headers;
+                env["Owin.BaseUri"] = "";
+                env["Owin.RemoteEndPoint"] = socket.RemoteEndPoint;
+                env["Owin.RequestBody"] = requestBodyObservable = new RequestBodyObservable(socket);
+
+                // TODO provide better values
+                env["Owin.ServerName"] = "";
+                env["Owin.ServerPort"] = 0;
+                env["Owin.UriScheme"] = "http";
+
+                // do something with env, like call the owin app
+            }
+
+            public void OnBody(ArraySegment<byte> data)
+            {
+                requestBodyObservable.OnBodyData(data);
+            }
+
+            public void OnMessageComplete()
+            {
+                // 0-length means we're done
+                requestBodyObservable.OnBodyData(default(ArraySegment<byte>));
+            }
+
+            public void OnError(Exception e)
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        static IEnumerable<object> ProcessSocketInternal(this ISocket socket, OwinApplication application)
+        {
+
             var beginRequest = http.BeginRequest(socket);
             yield return beginRequest;
 
             var request = beginRequest.Result;
 
-            var invoke = new ContinuationState<Tuple<string, IDictionary<string, IList<string>>, IEnumerable<object>>>
+            var invoke = new ContinuationState<Tuple<string, IDictionary<string, IList<string>>, IObservable<object>>>
                 ((r, e) => 
                     application(request, 
                                 (s,h,b) => 
-                                    r(new Tuple<string,IDictionary<string,IList<string>>,IEnumerable<object>>(s, h, b)), 
+                                    r(new Tuple<string,IDictionary<string,IList<string>>,IObservable<object>>(s, h, b)), 
                                 e));
 
             yield return invoke;
 
             var response = invoke.Result;
 
-            yield return http.BeginResponse(socket, response.Item1, response.Item2);
+            new ResponseObserver(socket)
+            var subscription = response.Item3.Subscribe();
+                
 
             foreach (var obj in response.Item3)
             {
+                
+            }
+
+            socket.Dispose();
+        }
+
+        class ResponseObserver : IObserver<object>
+        {
+            ISocket socket;
+            IDisposable throttle;
+
+            public ResponseObserver(ISocket socket, IObservable<object> body)
+            {
+                this.socket = socket;
+            }
+
+            public void OnCompleted()
+            {
+            }
+
+            public void OnError(Exception error)
+            {
+                Console.WriteLine("Error from response observable.");
+                Console.Out.WriteException(error);
+            }
+
+            public void OnNext(object obj)
+            {
                 var objectToWrite = obj;
-
-                if (obj is Action<Action<object>, Action<Exception>>)
-                {
-                    var cs = new ContinuationState<object>(obj as Action<Action<object>, Action<Exception>>);
-
-                    yield return cs;
-
-                    objectToWrite = cs.Result;
-                }
 
                 if (objectToWrite is FileInfo)
                 {
-                    yield return new ContinuationState((r, s) => socket.WriteFile((objectToWrite as FileInfo).Name, r, s));
-                    continue;
+                    socket.Write((objectToWrite as FileInfo).Name);
+                    return;
                 }
 
                 var chunk = default(ArraySegment<byte>);
@@ -96,18 +209,12 @@ namespace Kayak
                 else if (obj is byte[])
                     chunk = new ArraySegment<byte>(obj as byte[]);
                 else
-                    continue;
-                    //throw new ArgumentException("Invalid object of type " + obj.GetType() + " '" + obj.ToString() + "'");
+                    return;
+                //throw new ArgumentException("Invalid object of type " + obj.GetType() + " '" + obj.ToString() + "'");
 
-                var write = socket.WriteChunk(chunk);
-                yield return write;
-
-                // TODO enumerate to completion
-                if (write.Exception != null)
-                    throw write.Exception;
+                socket.Write(chunk);
             }
-
-            socket.Dispose();
         }
+
     }
 }

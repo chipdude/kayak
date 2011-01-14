@@ -14,6 +14,7 @@ namespace Kayak
     /// </summary>
     public class DotNetServer : IKayakServer
     {
+        public Action<ISocket> OnConnection { get; set; }
         public IPEndPoint ListenEndPoint { get; private set; }
         int backlog;
 
@@ -65,20 +66,20 @@ namespace Kayak
             }
         }
 
-        public void GetConnection(Action<ISocket> socket)
+        void DoAccept()
         {
             listener.BeginAccept(iasr =>
             {
                 try
                 {
-                    socket(new DotNetSocket(listener.EndAccept(iasr)));
+                    OnConnection(new DotNetSocket(listener.EndAccept(iasr)));
                 }
                 catch (Exception e)
                 {
                     Console.WriteLine("Exception while accepting connection.");
                     Console.Out.WriteException(e);
                 }
-                
+                DoAccept();
             }, null);
         }
     }
@@ -102,50 +103,64 @@ namespace Kayak
             socket.Close();
         }
 
-        public void Write(byte[] buffer, int offset, int count, Action<int> bytesWritten, Action<Exception> exception)
+        public ContinuationState<Unit> Write(ArraySegment<byte> bytes)
         {
-            socket.BeginSend(buffer, offset, count, SocketFlags.None, iasr =>
-                {
-                    try
-                    {
-                        bytesWritten(socket.EndSend(iasr));
-                    }
-                    catch (Exception e)
-                    {
-                        exception(e);
-                    }
-                }, null);
+            throw new NotImplementedException();
         }
 
-        public void WriteFile(string file, Action competed, Action<Exception> exception)
+        public ContinuationState<Unit> Write(string file)
         {
-            socket.BeginSendFile(file, iasr =>
-            {
-                try
-                {
-                    socket.EndSendFile(iasr);
-                    competed();
-                }
-                catch (Exception e)
-                {
-                    exception(e);
-                }
-            }, null);
+
+            throw new NotImplementedException();
         }
 
-        public void Read(byte[] buffer, int offset, int count, Action<int> bytesRead, Action<Exception> exception)
+        public void End()
         {
-            socket.BeginSend(buffer, offset, count, SocketFlags.None, iasr =>
+            socket.Shutdown(SocketShutdown.Send);
+        }
+
+        public void Enable()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Disable()
+        {
+            throw new NotImplementedException();
+        }
+
+        public Action<ArraySegment<byte>> OnData
+        {
+            set { throw new NotImplementedException(); }
+        }
+
+        public Action OnTimeout
+        {
+            set { throw new NotImplementedException(); }
+        }
+
+        public int Timeout
+        {
+            get
             {
-                try
-                {
-                    bytesRead(socket.EndSend(iasr));
-                }
-                catch (Exception e)
-                {
-                    exception(e);
-                }
-            }, null);
+                throw new NotImplementedException();
+            }
+            set
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        public bool NoDelay
+        {
+            get
+            {
+                throw new NotImplementedException();
+            }
+            set
+            {
+                throw new NotImplementedException();
+            }
         }
     }
 }

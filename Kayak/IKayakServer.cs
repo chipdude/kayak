@@ -5,6 +5,6 @@ namespace Kayak
     public interface IKayakServer
     {
         IDisposable Start();
-        void GetConnection(Action<ISocket> socket);
+        Action<ISocket> OnConnection { set; }
     }
 }

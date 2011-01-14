@@ -5,35 +5,34 @@ using Coroutine;
 
 namespace Kayak
 {
-    /// <summary>
-    /// Represents a socket which supports asynchronous IO operations.
-    /// </summary>
+
     public interface ISocket : IDisposable
     {
-        /// <summary>
-        /// The IP end point of the connected peer.
-        /// </summary>
+        // output
+        ContinuationState<Unit> Write(ArraySegment<byte> bytes);
+        ContinuationState<Unit> Write(string file);
+        void End();
+
+        // input
+        void Enable();
+        void Disable();
+        Action<ArraySegment<byte>> OnData { set; }
+        Action OnTimeout { set; }
+
         IPEndPoint RemoteEndPoint { get; }
-
-        /// <summary>
-        /// Returns an observable which, upon subscription, begins an asynchronous write
-        /// operation. When the operation completes, the observable yields the number of
-        /// bytes written and completes.
-        /// </summary>
-        void Write(byte[] buffer, int offset, int count, Action<int> bytesWritten, Action<Exception> exception);
-
-        /// <summary>
-        /// Returns an observable which, upon subscription, begins copying a file
-        /// to the socket. When the copy operation completes, the observable completes.
-        /// </summary>
-        void WriteFile(string file, Action completed, Action<Exception> exception);
-
-        /// <summary>
-        /// Returns an observable which, upon subscription, begins an asynchronous read
-        /// operation. When the operation completes, the observable yields the number of
-        /// bytes read and completes.
-        /// </summary>
-        void Read(byte[] buffer, int offset, int count, Action<int> bytesRead, Action<Exception> exception);
+        int Timeout { get; set; }
+        bool NoDelay { get; set; }
     }
 
+    public static partial class Extensions
+    {
+        public static ContinuationState<ArraySegment<byte>> Read(this ISocket socket)
+        {
+            return new ContinuationState<ArraySegment<byte>>((r, e) =>
+                {
+                    socket.OnData = d => r(d);
+                    socket.OnTimeout = () => e(new Exception("The connection timed out."));
+                });
+        }
+    }
 }
